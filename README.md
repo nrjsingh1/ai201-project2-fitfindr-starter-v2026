@@ -59,24 +59,31 @@
 
 ### `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Filters the 40 listings in `data/listings.json` by price and size, then ranks what's left by how many words from `description` appear in each listing's `title`, `description` and `style_tags`. It does not call the model.
+- **Inputs:**
+  - `description` (str): keywords such as `"vintage graphic tee"`. Matching ignores case. One point per query word found in the title, description or tags. Words under 3 characters are ignored.
+  - `size` (str or None): `None` skips size filtering. Otherwise the listing's `size` is split on `/`, spaces and brackets into tokens, and the listing matches if any token equals the requested size, ignoring case. `"M"` matches `S/M` and `M/L` but not `XL (oversized)`, and `"S"` never matches `US 9`. Shoe sizes are compared as `US <n>` (`"8"` matches `US 8`, not `US 8.5`). Waist sizes are compared as `W<n>` (`"W30"` matches `W30 L30`). `One Size` listings pass every size filter.
+  - `max_price` (float or None): inclusive ceiling. `None` skips price filtering.
+- **Returns:** a `list[dict]` of listing dicts, highest keyword score first, at most `config.SEARCH_RESULT_LIMIT` (10). Each dict is the listing unchanged, with keys `id` (str), `title` (str), `description` (str), `category` (str), `style_tags` (list[str]), `size` (str), `condition` (str), `price` (float), `colors` (list[str]), `brand` (str **or None**) and `platform` (str). Listings with a score of 0 are dropped. Ties keep file order.
+- **When it has nothing:** returns an empty list `[]`. It never returns `None` and never raises. This is what the loop branches on.
 
 ### `suggest_outfit`
 
-- **What it does:**
+- **What it does:** Asks the model, through `generate()`, for one or two outfits built around the thrifted item. When the wardrobe has items, the outfits use pieces the user already owns.
 - **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+  - `new_item` (dict): one listing dict from `search_listings`, with the same keys as above.
+  - `wardrobe` (dict): `{"items": [...]}`. Each item has `id` (str), `name` (str), `category` (str: tops / bottoms / outerwear / shoes / accessories), `colors` (list[str]), `style_tags` (list[str]) and `notes` (str or None). `items` may be an empty list.
+- **Returns:** a non-empty `str` of plain text with 1–2 outfit suggestions. With a wardrobe, each outfit names specific pieces from it by `name`, so it never invents clothes the user doesn't own.
+- **When it has nothing:** if `wardrobe["items"]` is empty or missing, it still returns a non-empty `str`: general styling advice for the item (what kinds of pieces, colors and vibe go with it). It never returns `""` and never raises for an empty wardrobe. If the model can't be reached, `ModelUnavailable` propagates up to the loop.
 
 ### `create_fit_card`
 
-- **What it does:**
+- **What it does:** Asks the model, through `generate()`, for a short social-media caption about the find that sounds like a real post, not a product description.
 - **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+  - `outfit` (str): the string `suggest_outfit` returned.
+  - `new_item` (dict): the same listing dict that was passed to `suggest_outfit`.
+- **Returns:** a `str` caption of 2–4 sentences. It mentions the item's `title`, `price` (as `$NN`) and `platform` exactly once each, and describes the vibe of the outfit specifically. Captions vary between runs (`TEMPERATURE` = 0.9).
+- **When it has nothing:** if `outfit` is empty or only whitespace, it skips the model call and returns the fixed string `"Couldn't write a fit card: no outfit suggestion was provided for <title>."`. It never returns `""` and never raises for an empty outfit.
 
 ---
 
@@ -93,13 +100,13 @@
      The grader checks your code against what you claim here, so the file and
      function have to be real. -->
 
-**Branch rule:**
+**Branch rule:** If `search_listings` returns an empty list, put a message in `session["error"]` that names what the user could change (broader words, a different size, a higher price ceiling), and return the session without calling `suggest_outfit` or `create_fit_card`. Otherwise, put the first result in `session["selected_item"]` and go on to `suggest_outfit`, then `create_fit_card`.
 
 **Where it lives:** `agent.py::run_agent`
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:** with regex, not a model call. A `$<number>` (optionally after "under", "below" or "up to") becomes `max_price`. `size <X>` becomes `size`. Whatever text is left becomes `description`. Regex costs nothing and gives the same answer every time. The tradeoff is that it misses phrasing it wasn't written for: "under thirty dollars" sets no price ceiling.
 
-**What moves through the session:** <!-- which fields, in what order -->
+**What moves through the session:** `query` → `parsed` (`description`, `size`, `max_price`) → `search_results` → **branch** → `selected_item` → `outfit_suggestion` → `fit_card`. `error` is set only if the run stops early. When it is, every field after the stopping point stays `None`.
 
 ---
 
