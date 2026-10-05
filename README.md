@@ -126,20 +126,51 @@ $ python app.py ask '...'
 
 **The three tools, tested one at a time**
 
-```
-$ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
+`search_listings`, a match and the empty case:
 
 ```
+$ python -c "from tools import search_listings; print([(l['title'], l['price']) for l in search_listings('graphic tee', max_price=30)])"
+[('Y2K Baby Tee — Butterfly Print', 18.0), ('Graphic Tee — 2003 Tour Bootleg Style', 24.0), ('Mesh Long-Sleeve Top — Black', 15.0), ('Vintage Band Tee — Faded Grey', 19.0), ('Low-Rise Cargo Pants — Khaki', 27.0), ('Oversized Crewneck Sweatshirt — Vintage Navy', 20.0), ('Vintage Graphic Hoodie — Faded Black', 26.0)]
+
+$ python -c "from tools import search_listings; print(search_listings('designer ballgown', size='XXS', max_price=5))"
+[]
+```
+
+Every result is ≤ $30. The cargo pants match because their description says
+"tee". Plain keyword search counts that.
+
+`suggest_outfit`, with the example wardrobe and then an empty one:
 
 ```
-$ python -c "from tools import suggest_outfit; ..."
+$ python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
+Outfit one: Wear the vintage Levi's 501 jeans with the white ribbed tank top tucked in. Add the brown leather belt, the slightly cropped vintage black denim jacket on top, and finish with the chunky white sneakers and black crossbody bag for an easy, classic streetwear look.
 
+Outfit two: Pair the vintage Levi's 501 jeans with the oversized grey crewneck sweatshirt worn loose and relaxed. Cinch the waist with the brown leather belt, and step into the black combat boots. Grab the black crossbody bag to complete this cozy, casual fit.
+
+$ python -c "from tools import suggest_outfit; from utils.data_loader import get_empty_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_empty_wardrobe()))"
+Here is how you can style those vintage Levi's 501s. 
+
+Outfit one leans into a casual streetwear vibe. Pair the medium wash denim with an oversized, graphic crewneck sweatshirt in heather gray or forest green. Finish it off with chunky retro sneakers, like white-and-red leather runners, and a canvas tote bag. 
+
+Outfit two is a classic, effortless look. Tuck a fitted ribbed tank top in black or white into the waistband, and layer an unbuttoned oversized linen button-down shirt over top in olive or beige. Add a worn brown leather belt and well-loved leather loafers or flat slides to keep the vintage energy grounded and cool.
 ```
 
-```
-$ python -c "from tools import create_fit_card; ..."
+`create_fit_card`, run three times on the same item, then with an empty outfit:
 
 ```
+$ python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
+Scored the ultimate everyday uniform with these vintage Levi's 501 jeans for only $38. They have that perfectly broken-in medium wash that looks effortless paired with crisp white sneakers for a casual weekend coffee run. Snag them now over on my depop before I change my mind and keep them. 👖
+
+Scored the ultimate everyday pair with these vintage Levi's 501 jeans for only $38. I'm keeping the vibe super effortless by pairing them with fresh white sneakers for running weekend errands. Grab them over on my depop before I change my mind and keep them for myself 👖✨
+
+Nothing beats the effortless look of a worn-in medium wash paired with crisp white sneakers for that ultimate effortless 90s off-duty vibe. I just scored these vintage Levi's 501 jeans on depop for $38 and I am never taking them off 🤌✨
+
+$ python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('   ', load_listings()[0]))"
+Couldn't write a fit card: no outfit suggestion was provided for Vintage Levi's 501 Jeans — Medium Wash.
+```
+
+The three captions differ, though the first two are close. `TEMPERATURE` is
+0.9 and `create_fit_card` passes `cache=False`, so each run is a real call.
 
 ---
 
