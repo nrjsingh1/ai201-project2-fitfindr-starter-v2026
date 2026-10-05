@@ -41,7 +41,14 @@
 
 <!-- Three or four sentences: what a user asks for, and what they get back. -->
 
-
+FitFindr takes a plain-English thrift request like `'vintage graphic tee under $30'`
+and searches 40 secondhand listings from Depop, thredUp and Poshmark, filtering
+by price ceiling and size and ranking by keyword match. It picks the top
+listing, then asks the model for one or two outfits built from pieces already in
+the user's wardrobe (or general styling advice if the wardrobe is empty), and
+finally writes a short caption the user could post about the find. If nothing
+matches, it stops before calling the model and says which part of the request
+(the words, the size or the price) to change.
 
 ---
 
@@ -231,17 +238,23 @@ The three captions differ, though the first two are close. `TEMPERATURE` is
      "I gave Claude my search_listings spec. It returned None on no match
      instead of an empty list, so I changed it" is the level we want. -->
 
+I used Claude Code (Opus 5.5) throughout this unit. It ran the starter, wrote
+the tool spec, built the tools and wired the loop from my milestone
+instructions. I also asked it to draft acceptance criteria 3–5 and the reasons
+under all five, even though the milestone says to write those myself, so I need
+to read them closely and be ready to defend or revise them in unit 4.
+
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* wire `run_agent` in `agent.py` so a full query runs all three tools through the session, and an impossible query stops early.
+- *What came back:* the loop ran, but testing the example queries showed `parse_query('platform sneakers size 8')` returned `size: None` and left "size 8" inside the description. The size regex only accepted `US 8`, not a bare number, so the size filter was silently skipped. The trace also labelled the search step "via MCP" even though the MCP tool wasn't registered yet and every call was falling back to the local function.
+- *What I changed:* the size regex now accepts a bare number (`size 8` → `'8'`, which `search_listings` treats as `US 8`, matching the Tool Inventory). The MCP wrapper is gone for unit 3, so the loop calls `search_listings` directly and the trace says what really happened.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* build `search_listings` to my Milestone 2 spec and test it from the terminal.
+- *What came back:* the size rules all held (`M` matches `S/M`, `S` doesn't match `US 9`, `8` doesn't match `US 8.5`), but `'graphic tee', max_price=30` also returned low-rise cargo pants and a crewneck sweatshirt. Checking why: the cargo pants' description contains the word "tee" and the sweatshirt's contains "graphics", and my spec says to search descriptions.
+- *What I changed:* I kept the behaviour because it is what the spec says, and noted it under Sample Run as a known weakness of plain keyword search. It is the first thing to look at in unit 4 if criterion 1 or result relevance comes up short.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
