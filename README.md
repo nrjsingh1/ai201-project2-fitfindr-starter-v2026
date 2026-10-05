@@ -120,8 +120,56 @@
 **One full query**
 
 ```
-$ python app.py ask '...'
+$ python app.py ask 'vintage graphic tee under $30'
+[1] parse_query
+      in:  vintage graphic tee under $30
+      out: dict with keys: description, size, max_price
+[2] search_listings
+      in:  dict with keys: description, size, max_price
+      out: 10 items: Y2K Baby Tee — Butterfly Print, Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey … +7 more
+      →    10 match(es)
+[3] select_item
+      out: Y2K Baby Tee — Butterfly Print ($18.0, depop)
+[4] suggest_outfit
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      out: Grab that butterfly baby tee, it is a great find for eighteen dollars.   Outfit one leans into that nostalgic …
+      →    10 wardrobe item(s)
+[5] create_fit_card
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      out: Scored this Y2K baby tee with the cutest butterfly print for just $18 on depop, and I'm obsessed. I've been li…
 
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Grab that butterfly baby tee, it is a great find for eighteen dollars. 
+
+Outfit one leans into that nostalgic streetwear contrast. Pair the baby tee with the baggy straight-leg jeans, dark wash on the bottom. Throw the vintage black denim jacket over top to tie the dark tones together, and step into the chunky white sneakers. Add the black crossbody bag for a complete Y2K street look.
+
+Outfit two mixes the cute graphic top with structured earth tones. Tuck the baby tee into the wide-leg khaki trousers. Cinch the waist with the brown leather belt, and finish the outfit with the black combat boots to add a little edge.
+
+  Fit card: Scored this Y2K baby tee with the cutest butterfly print for just $18 on depop, and I'm obsessed. I've been living in it lately, whether I'm styling it with baggy dark-wash denim and a vintage jacket for that ultimate nostalgic streetwear contrast, or dressing it down with edgy khaki trousers and combat boots 🦋
+
+1 model calls this session, 1 served from cache, 238 prompt + 73 output tokens
+```
+
+The same loop with a query the data can't match. It stops at the branch, makes
+no model calls, and `fit_card` stays `None`:
+
+```
+$ python app.py ask 'designer ballgown size XXS under $5'
+[1] parse_query
+      in:  designer ballgown size XXS under $5
+      out: dict with keys: description, size, max_price
+[2] search_listings
+      in:  dict with keys: description, size, max_price
+      out: [] (empty)
+      →    0 match(es)
+[3] branch
+      →    search returned []: stopping before suggest_outfit
+
+  Nothing in the listings matched description 'designer ballgown', size XXS, under $5.
+Things to change: try broader words — 'jacket' finds more than 'cropped corduroy jacket'; drop the size, or try a neighbouring one; raise the price ceiling above $5.
+
+0 model calls this session
 ```
 
 **The three tools, tested one at a time**
