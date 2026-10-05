@@ -25,9 +25,12 @@ Given a query that matches at least one listing, the agent completes all three
 tool calls and returns a fit card — in at least 4 of 5 tries.
 
 **Why this target:**
-<!-- Why 4 of 5 and not 5 of 5? Something about your search, probably —
-     "my search is a plain keyword match and some phrasings will miss" is a
-     real answer. -->
+Not 5 of 5, because two layers can fail on a query that does have a match.
+Parsing is regex, so phrasing it wasn't written for ("under thirty dollars",
+"medium") goes through unparsed or ends up in the description. Search is
+plain keyword overlap with no synonyms, so "tshirt" won't find "tee". The two
+model calls can also fail on their own. One miss in five allows for that.
+More than one would mean the search itself is broken.
 
 ---
 
@@ -37,65 +40,66 @@ Given a query that matches no listings, the agent stops before calling
 `suggest_outfit` and returns a message naming what to change — 5 of 5 tries.
 
 **Why this target:**
-<!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
-     about this path? -->
+This path never reaches the model. It is regex, a filter over a local JSON
+file, and one `if not results:` check, all deterministic, so the same query
+gives the same result every time. Missing even once would mean the branch is
+wrong, not unlucky. The message is built from the parsed query, so it always
+names at least the description and whichever size or price was set.
 
 ---
 
-## 3. Something about state
+## 3. The item search found is the item the next tools received
 
-<!-- YOU WRITE THIS ONE.
-
-     How would you know that the item your search found is the same item the
-     next tool received? Name something countable or observable.
-
-     This is the criterion people find hardest, because state failure doesn't
-     look like state failure — it looks like a tool problem. Something that
-     compares session["selected_item"] against what actually reached
-     suggest_outfit is the shape you're after. -->
-
-
+For 5 queries that match at least one listing, the `id` in
+`session["selected_item"]` equals `session["search_results"][0]["id"]`, and
+the trace shows that same `id` in the inputs to both `suggest_outfit` and
+`create_fit_card`: 5 of 5 tries.
 
 **Why this target:**
-
-
-
----
-
-## 4. Something about the fit card
-
-<!-- YOU WRITE THIS ONE.
-
-     The fit card calls a model, so the same input can produce different words
-     each time. That's not a bug — it's the nature of the tool. So what would
-     make it acceptable?
-
-     Think about what you'd actually be unhappy to see. A caption that never
-     mentions the price? Two different items producing the same opening
-     sentence? A card longer than a caption anyone would post? Any of those can
-     be turned into a number. -->
-
-
-
-**Why this target:**
-
+Passing one dict from step to step involves no model and no randomness, so
+anything under 5 of 5 is a real bug, such as a variable overwritten between
+steps or a tool re-running search, not noise. I check the `id` and not the
+title because titles are not guaranteed unique, and I use the trace because it
+shows what each tool actually received, not what the session says it should
+have received.
 
 
 ---
 
-## 5. Your choice
+## 4. The fit card is a usable caption for that specific item
 
-<!-- YOU WRITE THIS ONE TOO.
-
-     Pick something you actually care about getting right. Speed, the empty
-     wardrobe path, what happens when the model can't be reached, whether the
-     search respects a price ceiling — anything, as long as it names a number
-     or an observable outcome. -->
-
-
+For 5 queries that select 5 different listings, at least 4 of the 5 fit
+cards are 2–4 sentences long (counting `.`, `!` and `?` endings), contain the
+item's price written as `$` plus the number (e.g. `$24`), and contain its
+platform name (`depop`, `thredUp` or `poshmark`, case-insensitive). No two of
+the 5 cards start with the same first sentence.
 
 **Why this target:**
+The words are supposed to vary at `TEMPERATURE = 0.9`, so the criterion checks
+what has to be true whatever the wording: right length, right price, right
+platform. 4 of 5 and not 5 of 5 because a model given the price in the prompt
+still sometimes leaves it out or runs long, and the prompt can't force it.
+The no-repeated-opening rule has no slack: identical openings across different
+items would mean the cache is on or the prompt ignores the item.
 
+
+---
+
+## 5. The search respects the price ceiling
+
+For 5 queries written with `under $N` (e.g. `'denim jacket under $50'`),
+`session["parsed"]["max_price"]` equals N, and every listing in
+`session["search_results"]` has `price` ≤ N: 5 of 5 queries, with zero
+over-budget listings across all results.
+
+**Why this target:**
+A shopper who says "under $30" and gets shown a $45 jacket stops trusting
+every other result. Both halves, the regex that pulls out N and the numeric
+filter, are deterministic, so there's no room for a miss. Checking `parsed`
+as well as the results catches the quiet failure where the price is never
+parsed, the filter is skipped, and cheap items happen to come back anyway.
+Spelled-out prices ("thirty dollars") are a known parser gap, written up in
+the README, and deliberately not part of this test.
 
 
 ---
