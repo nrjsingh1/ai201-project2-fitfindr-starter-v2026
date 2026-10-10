@@ -2,7 +2,7 @@ import re
 
 import config
 import trace
-from mcp_client import call_tool
+from mcp_client import MCPError, call_tool
 from tools import suggest_outfit, create_fit_card
 from generate import ModelUnavailable
 
@@ -110,7 +110,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         steps += 1
         trace.check_iterations(steps)
         session["parsed"] = parse_query(session["query"])
-        trace.step("parse_query", inputs=session["query"], returned=session["parsed"])
+        trace.step("parse_query", inputs=session["query"], returned=_parsed_label(session["parsed"]))
 
         steps += 1
         trace.check_iterations(steps)
@@ -127,7 +127,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         )
         trace.step(
             "search_listings (via MCP)",
-            inputs=session["parsed"],
+            inputs=_parsed_label(session["parsed"]),
             returned=session["search_results"],
             note=f"{len(session['search_results'])} match(es)",
         )
@@ -144,7 +144,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         steps += 1
         trace.check_iterations(steps)
         session["selected_item"] = session["search_results"][0]
-        trace.step("select_item", returned=session["selected_item"])
+        trace.step("select_item", returned=_item_label(session["selected_item"]))
 
         steps += 1
         trace.check_iterations(steps)
@@ -153,7 +153,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         )
         trace.step(
             "suggest_outfit",
-            inputs=session["selected_item"],
+            inputs=_item_label(session["selected_item"]),
             returned=session["outfit_suggestion"],
             note=f"{len(session['wardrobe'].get('items') or [])} wardrobe item(s)",
         )
@@ -165,21 +165,51 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         )
         trace.step(
             "create_fit_card",
-            inputs=session["selected_item"],
+            inputs=_item_label(session["selected_item"]),
             returned=session["fit_card"],
         )
 
-    except ModelUnavailable as exc:
+    except MCPError as exc:
         session["error"] = (
-            f"The model couldn't be reached, so the outfit and caption steps "
-            f"didn't run. The search worked — "
-            f"{len(session['search_results'])} listing(s) were found. "
-            f"Check GEMINI_API_KEY in your .env, then run the same query "
-            f"again.\nWhat the service said: {exc}"
+            "The search service didn't respond, so nothing was searched and no "
+            "outfit was written. This is a problem on the app's side, not with "
+            "your query. Try the same query again; if it fails twice, run "
+            "`python mcp_client.py` to see whether the search server starts.\n"
+            f"Details: {str(exc).splitlines()[0]}"
+        )
+        trace.step("search unavailable", note="MCP call failed: stopping")
+
+    except ModelUnavailable as exc:
+        item = session["selected_item"]
+        found = (
+            f"The search worked: it found {len(session['search_results'])} "
+            f"listing(s), best match {item['title']} (${item['price']:g} on "
+            f"{item['platform']})."
+            if item
+            else "The search worked."
+        )
+        session["error"] = (
+            f"{found} But the AI model couldn't be reached, so no outfit or "
+            f"caption was written.\n"
+            f"Why: {exc}\n"
+            f"Once that's fixed, run the same query again."
         )
         trace.step("model unavailable", note="stopping, search results kept")
 
     return session
+
+
+def _parsed_label(parsed: dict) -> str:
+    """The parsed query as one readable trace line, values and all."""
+    return (
+        f"description={parsed['description']!r}, size={parsed['size']!r}, "
+        f"max_price={parsed['max_price']!r}"
+    )
+
+
+def _item_label(item: dict) -> str:
+    """A listing for the trace, with its id, so state can be checked by id."""
+    return f"{item['id']} · {item['title']} (${item['price']:g}, {item['platform']})"
 
 
 def _nothing_found_message(parsed: dict) -> str:

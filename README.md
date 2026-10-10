@@ -338,14 +338,80 @@ that produced it:
 **Happy path**
 
 ```
-
+$ python app.py ask 'vintage graphic tee under $30' --trace
+[1] parse_query
+      in:  vintage graphic tee under $30
+      out: description='vintage graphic tee', size=None, max_price=30.0
+[2] search_listings (via MCP)
+      in:  description='vintage graphic tee', size=None, max_price=30.0
+      out: 10 items: Y2K Baby Tee — Butterfly Print, Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey … +7 more
+      →    10 match(es)
+[3] select_item
+      out: lst_002 · Y2K Baby Tee — Butterfly Print ($18, depop)
+[4] suggest_outfit
+      in:  lst_002 · Y2K Baby Tee — Butterfly Print ($18, depop)
+      out: Grab that butterfly baby tee, it is a great find for eighteen dollars.   Outfit one leans into that nostalgic …
+      →    10 wardrobe item(s)
+[5] create_fit_card
+      in:  lst_002 · Y2K Baby Tee — Butterfly Print ($18, depop)
+      out: Scored this Y2K baby tee with the cutest butterfly print for just $18 on Depop, and I've been obsessed with st…
 ```
 
 **Empty search**
 
 ```
-
+$ python app.py ask 'designer ballgown size XXS under $5' --trace
+[1] parse_query
+      in:  designer ballgown size XXS under $5
+      out: description='designer ballgown', size='XXS', max_price=5.0
+[2] search_listings (via MCP)
+      in:  description='designer ballgown', size='XXS', max_price=5.0
+      out: [] (empty)
+      →    0 match(es)
+[3] branch
+      →    search returned []: stopping before suggest_outfit
 ```
+
+The empty trace is 3 steps and the happy trace is 5: it stops at the branch.
+The same `lst_002` id appears in `select_item` and in the inputs of both
+`suggest_outfit` and `create_fit_card`, which is what criterion 3 checks.
+
+**Failures triggered on purpose**
+
+1. *Empty search*: `python app.py ask 'gold sequin tuxedo jacket size XXS under $3'`
+   ```
+   Nothing in the listings matched description 'gold sequin tuxedo jacket', size XXS, under $3.
+   Things to change: try broader words — 'jacket' finds more than 'cropped corduroy jacket'; drop the size, or try a neighbouring one; raise the price ceiling above $3.
+   ```
+   It stopped at the branch with 0 model calls. It already handled this before
+   this milestone.
+
+2. *Empty wardrobe*: `python app.py ask 'denim jacket under $50' --empty-wardrobe`.
+   There was no crash and no empty string. `suggest_outfit` returned two
+   general outfits ("high-waisted black cargo pants and a fitted white ribbed
+   tank top…", "a slip midi dress in olive green…") with no wardrobe pieces
+   named, and the fit card was written from that. It already handled this
+   before this milestone.
+
+3. *Model unavailable*: one character of `GEMINI_API_KEY` in `.env` changed,
+   then a query not asked before: `python app.py ask 'olive canvas shacket size M'`
+   ```
+   The search worked: it found 1 listing(s), best match Shacket — Olive Canvas ($33 on poshmark). But the AI model couldn't be reached, so no outfit or caption was written.
+   Why: The model rejected your API key. Check GEMINI_API_KEY in your .env file, or create a fresh key at aistudio.google.com.
+   Once that's fixed, run the same query again.
+   ```
+   It returned at once, with no hang and no stack trace. The first version of
+   this message said "Check GEMINI_API_KEY" twice and gave key advice even when
+   the cause could be a network error. Now the service's own reason comes
+   through under "Why", and the message keeps what the search found, so the run
+   isn't a total loss.
+
+4. *Search server unavailable* (MCP; not one of the required three, but new
+   this unit): with the client pointed at a server path that doesn't exist,
+   the run stopped with "The search service didn't respond, so nothing was
+   searched and no outfit was written… Try the same query again; if it fails
+   twice, run `python mcp_client.py`…" and not a raw `MCPError` traceback.
+   This handler was added in this milestone.
 
 **On the MCP move:** <!-- what changed in your code, and whether anything
 behaved differently afterwards. If the rewire didn't work, say exactly where it
