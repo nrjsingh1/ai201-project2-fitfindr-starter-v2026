@@ -276,18 +276,143 @@ to read them closely and be ready to defend or revise them in unit 4.
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. Matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. Impossible query stops before suggest_outfit | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. Selected item is the item passed on (by id) | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card: 2-4 sentences, $price, platform | 4 of 5 cards, no repeat opening | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. Search respects the price ceiling | 5 of 5 queries | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 
-**Real output from one try**, pasted as text, naming the file and function
-that produced it:
+How each try was scored: `python score_eval.py --label before` runs
+`run_eval.py::main` unchanged (14 scenarios from `scenarios.py`, 5 tries each,
+cache off, 132 real model calls). It then applies each criterion in
+`criteria.md` to those same sessions in code, so every try is judged the same
+way. Full output: `results/run_2026-10-09_2133_before.md`. Verdicts and the
+reason for every try: `results/score_before.md`.
+
+For criteria 1–3 a try is one run of that criterion's scenario. Criteria 4 and
+5 are each written over five different queries, so a try is the k-th run of
+all five: for criterion 4, 4+ of the 5 cards must pass with no repeated
+opening; for criterion 5, all 5 queries must pass. Before trusting 25/25, I
+checked that the 5 cards for the same item were 5 different texts, and that
+the scorer flags a 1-sentence card, a missing price, a wrong `id` in the
+trace and an over-budget listing when given them on purpose.
+
+**Real output from one try** (try 1 of each; loop `agent.py::run_agent`,
+search over MCP from `mcp_server.py::search_listings`, outfit
+`tools.py::suggest_outfit`, card `tools.py::create_fit_card`):
+
+*Criterion 1: matching query completes* (`vintage graphic tee under $30`)
 
 ```
+[1] parse_query
+      in:  vintage graphic tee under $30
+      out: description='vintage graphic tee', size=None, max_price=30.0
+[2] search_listings (via MCP)
+      in:  description='vintage graphic tee', size=None, max_price=30.0
+      out: 10 items: Y2K Baby Tee — Butterfly Print, Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey … +7 more
+      →    10 match(es)
+[3] select_item
+      out: lst_002 · Y2K Baby Tee — Butterfly Print ($18, depop)
+[4] suggest_outfit
+      in:  lst_002 · Y2K Baby Tee — Butterfly Print ($18, depop)
+      out: For a balanced Y2K streetwear look, pair the butterfly baby tee with the baggy straight-leg jeans, dark wash. …
+      →    10 wardrobe item(s)
+[5] create_fit_card
+      in:  lst_002 · Y2K Baby Tee — Butterfly Print ($18, depop)
+      out: Obsessed with this Y2K baby tee with the cutest butterfly print, scoring it for just $18 over on depop. I've b…
+
+Fit card: Obsessed with this Y2K baby tee with the cutest butterfly print, scoring it for just $18 over on depop. I've been wearing it non-stop with baggy dark wash denim and chunky sneaks for that effortless off-duty streetwear vibe.
+```
+
+*Criterion 2: impossible query stops* (`designer ballgown size XXS under $5`)
 
 ```
+[1] parse_query
+      in:  designer ballgown size XXS under $5
+      out: description='designer ballgown', size='XXS', max_price=5.0
+[2] search_listings (via MCP)
+      in:  description='designer ballgown', size='XXS', max_price=5.0
+      out: [] (empty)
+      →    0 match(es)
+[3] branch
+      →    search returned []: stopping before suggest_outfit
+
+session["error"]: Nothing in the listings matched description 'designer ballgown', size XXS, under $5.
+Things to change: try fewer words — 'ballgown' alone finds more than 'designer ballgown'; drop the size, or try a neighbouring one; raise the price ceiling above $5.
+session["fit_card"]: None
+```
+
+*Criterion 3: state* (`chunky knit cardigan`). `lst_008` is `search_results[0]`,
+`selected_item`, and the input to both later tools:
+
+```
+[1] parse_query
+      in:  chunky knit cardigan
+      out: description='chunky knit cardigan', size=None, max_price=None
+[2] search_listings (via MCP)
+      in:  description='chunky knit cardigan', size=None, max_price=None
+      out: 3 items: Knit Cardigan — Chunky Brown, Platform Sneakers — White Chunky Sole, Vintage Knit Vest — Argyle Brown/Cream
+      →    3 match(es)
+[3] select_item
+      out: lst_008 · Knit Cardigan — Chunky Brown ($35, depop)
+[4] suggest_outfit
+      in:  lst_008 · Knit Cardigan — Chunky Brown ($35, depop)
+      out: Outfit One: Earth Tone Comfort Layer the chunky brown knit cardigan over the white ribbed tank top. Pair them …
+      →    10 wardrobe item(s)
+[5] create_fit_card
+      in:  lst_008 · Knit Cardigan — Chunky Brown ($35, depop)
+      out: Obsessed with this chunky brown knit cardigan I just dropped on depop for $35! It’s giving the ultimate cozy e…
+```
+
+*Criterion 4: fit cards for 5 different listings*:
+
+```
+[track jacket]
+Found the ultimate 90s track jacket and couldn't wait to style it two ways, from baggy denim streetwear to crisp khaki smart-casual. Grab it on Poshmark for just $45 before I change my mind and keep it in my own rotation. 🧥✨
+
+[silk slip dress]
+Still obsessed with this 90s silk slip dress I just scored for only $30. Today I'm channeling total indie-sleuth energy by layering it under an oversized crewneck with combat boots, then switching it up tomorrow with a white tank and a cropped denim jacket for that ultimate grunge-meets-streetwear aesthetic. Find it live on my Depop right now 🥀
+
+[platform sneakers]
+Just scored these chunky platform sneakers for $48 on poshmark and I'm obsessed with how they pull together a relaxed Y2K streetwear vibe. I've already styled them two ways: first with baggy denim and a vintage jacket, and then dressed up a bit with wide-leg trousers and a cropped zip hoodie.
+
+[corduroy pants]
+Found these dreamy rust corduroy wide-leg pants on Depop for just $32 and I am obsessed. I've been styling them two ways: either leaning into a retro coffee run vibe with a tucked-in white tank and denim jacket, or keeping it cozy with an oversized grey crewneck and combat boots.
+
+[leather bomber]
+Finally parting with this 90s leather bomber for $75 on depop because my closet is overflowing. It goes with literally everything, whether you're leaning into heavy 90s grunge with a cropped hoodie and combat boots, or playing with minimal textures by throwing it over a ribbed tank and khaki trousers. 🧥
+```
+
+*Criterion 5: price ceiling*. Trace for the boundary case, where the $35
+cardigan is kept by "under $35":
+
+```
+[1] parse_query
+      in:  cardigan under $35
+      out: description='cardigan', size=None, max_price=35.0
+[2] search_listings (via MCP)
+      in:  description='cardigan', size=None, max_price=35.0
+      out: 1 items: Knit Cardigan — Chunky Brown
+      →    1 match(es)
+```
+
+Result prices for all five queries. Search is deterministic (no model), so I
+re-ran it through `mcp_client.call_tool` to list the prices, which the run
+file doesn't print:
+
+```
+denim jacket under $50: prices [42.0, 38.0, 45.0, 24.0, 33.0, 30.0, 27.0] -> max 45.0 <= 50
+graphic tee under $20: prices [18.0, 15.0, 19.0, 20.0] -> max 20.0 <= 20
+cardigan under $35: prices [35.0] -> max 35.0 <= 35
+boots under $45: prices [44.0] -> max 44.0 <= 45
+flannel shirt under $25: prices [22.0, 20.0, 18.0] -> max 22.0 <= 25
+```
+
+**Noticed, but not measured by any criterion:** several fit cards speak as the
+*seller* ("Finally parting with this 90s leather bomber… because my closet is
+overflowing", "I just dropped on depop", "Grab it on Poshmark… before I change
+my mind"), but the user is the *buyer*. And `chunky knit cardigan` also returns
+Platform Sneakers ("chunky sole"), which is keyword overlap again.
 
 ---
 

@@ -35,18 +35,46 @@ SCENARIOS = [
         "wardrobe": "empty",
         "criterion": None,
     },
-    # TODO: add what your criteria 3, 4 and 5 need.
-    #
-    # Set "criterion" to the number in criteria.md that the scenario tests.
-    # "criterion": None means a diagnostic run — useful to have, but it isn't
-    # one of your five, and run_eval.py marks it as such in the table.
-    #
-    # For a state criterion, any normal query works — what you're checking is
-    # what ends up in the session, not what the user typed.
-    #
-    # For a fit-card criterion, you probably want the SAME query listed more
-    # than once, or several different items, depending on what your criterion
-    # actually says.
+    {
+        # Criterion 3 — state. Any matching query works; what's checked is that
+        # the id in session["selected_item"] is search_results[0]'s id and is
+        # the id the trace shows going into suggest_outfit and create_fit_card.
+        "name": "state carries the selected item",
+        "query": "chunky knit cardigan",
+        "wardrobe": "example",
+        "criterion": 3,
+    },
+
+    # Criterion 4 — the fit card, across 5 queries that select 5 DIFFERENT
+    # listings (lst_004, lst_013, lst_019, lst_005, lst_022; three platforms).
+    # One "try" of criterion 4 is one pass over all five: 4+ of the 5 cards
+    # must be 2-4 sentences with "$price" and the platform, and no two may
+    # share an opening sentence.
+    {"name": "fit card: track jacket", "query": "90s track jacket in size M",
+     "wardrobe": "example", "criterion": 4},
+    {"name": "fit card: silk slip dress", "query": "silk slip dress in midi length under $40",
+     "wardrobe": "example", "criterion": 4},
+    {"name": "fit card: platform sneakers", "query": "platform sneakers size 8",
+     "wardrobe": "example", "criterion": 4},
+    {"name": "fit card: corduroy pants", "query": "corduroy wide-leg pants",
+     "wardrobe": "example", "criterion": 4},
+    {"name": "fit card: leather bomber", "query": "leather bomber jacket",
+     "wardrobe": "example", "criterion": 4},
+
+    # Criterion 5 — the price ceiling, across 5 "under $N" queries. Two sit
+    # exactly on the ceiling (cardigan $35, tee $20) to test "inclusive".
+    # One "try" of criterion 5 is one pass over all five: parsed max_price == N
+    # and no result over N, for every one of them.
+    {"name": "price ceiling: denim jacket $50", "query": "denim jacket under $50",
+     "wardrobe": "example", "criterion": 5},
+    {"name": "price ceiling: graphic tee $20", "query": "graphic tee under $20",
+     "wardrobe": "example", "criterion": 5},
+    {"name": "price ceiling: cardigan $35", "query": "cardigan under $35",
+     "wardrobe": "example", "criterion": 5},
+    {"name": "price ceiling: boots $45", "query": "boots under $45",
+     "wardrobe": "example", "criterion": 5},
+    {"name": "price ceiling: flannel $25", "query": "flannel shirt under $25",
+     "wardrobe": "example", "criterion": 5},
 ]
 
 WARDROBES = ("example", "empty")
