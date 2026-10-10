@@ -631,26 +631,78 @@ server, asks, and stops it again.
 
      `python run_eval.py --label after` -->
 
-**What I changed:**
+**What I changed:** one prompt, in `tools.py::create_fit_card`. I added a
+paragraph saying who is posting: *"The person posting is the BUYER. They just
+bought this secondhand and are showing off their find and how they're styling
+it. They are not selling it, have not listed it, and are keeping it — never
+write it as a listing or invite anyone to buy it."* Two labels changed to
+match: `Price:` became `Price they paid:`, and `Platform:` became `Where they
+found it:`. The instruction to mention the platform now says "where they found
+it". Nothing else changed: same tools, loop, scenarios, temperature and scorer.
 
-**Which failure it was meant to fix:**
+**Which failure it was meant to fix:** criterion 4 (revised), MISSED 0/5. In the
+before run, 26 of 65 fit cards were written as the seller ("Finally parting
+with this 90s leather bomber…", "It's up on my Poshmark for $45 if you want to
+make it yours"). The diagnosis put this in the model's output, caused by a
+prompt that never said the poster bought the item, so the fix is in the prompt.
 
-### Run Log — After
+### Run Log — Before (for comparison)
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. Matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. Impossible query stops before suggest_outfit | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. Selected item is the item passed on (by id) | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card: 2-4 sentences, $price, platform | 4 of 5 cards, no repeat opening | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4R. Fit card (revised): + buyer's voice, not seller's | 4 of 5 cards, no repeat opening | FAIL | FAIL | FAIL | FAIL | FAIL | **MISSED (0/5)** |
+| 5. Search respects the price ceiling | 5 of 5 queries | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 
-**Did it help, and how do I know:**
+### Run Log — After
 
-<!-- If it made things worse, say that. Honestly reported, that earns full
-     credit and is more interesting than one that worked. -->
+`python score_eval.py --label after` runs `run_eval.py::main` with the label
+`after` (14 scenarios, 5 tries, cache off, 131 real model calls), then scores
+those sessions with the same rules as before. Files:
+`results/run_2026-10-09_2302_after.md` and `results/score_after.md`.
 
+| Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
+|---|---|---|---|---|---|---|---|
+| 1. Matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. Impossible query stops before suggest_outfit | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. Selected item is the item passed on (by id) | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card: 2-4 sentences, $price, platform | 4 of 5 cards, no repeat opening | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4R. Fit card (revised): + buyer's voice, not seller's | 4 of 5 cards, no repeat opening | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. Search respects the price ceiling | 5 of 5 queries | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 
+**Did it help, and how do I know:** Yes. Revised criterion 4 went from
+**MISSED (0/5) to MET (5/5)**, and seller-voice cards went from **26 of 65 to 0
+of 65** across every scenario that writes a card, not only the five criterion 4
+scores. To check the scorer wasn't just missing new wording, I also searched
+all 65 after-cards for broader sale words ("sell", "sale", "listing",
+"available", "link", "DM", "yours"…) and found none. The track jacket, the
+worst item before (5/5 seller), now reads like a buyer:
+
+```
+Scored this amazing 90s track jacket on Poshmark for just $45 and I am so obsessed with it. I’ve been styling it two ways lately: layered casually over a white ribbed tank and baggy denim for a sporty streetwear vibe, or dressed up with wide-leg khakis for that high-low contrast. It's such an easy piece to throw on and instantly pulls the whole look together.
+```
+
+and the leather bomber, which was "Finally parting with this…" twice before:
+
+```
+Scored this vintage 90s leather bomber on Depop for just $75 and I'm obsessed. I'm leaning into the grunge aesthetic today by pairing it with a simple white tank, baggy dark wash jeans, and chunky combat boots. For a more modern streetwear contrast, I've been throwing it on over a cropped zip hoodie with fresh white sneakers.
+```
+
+Nothing else got worse. Criteria 1, 2, 3 and 5 stayed at 5/5, and average card
+length is the same (285 → 293 characters).
+
+**One honest cost.** Criterion 4's per-try note shows two cards failing as
+"1 sentence" (silk slip dress in try 2, track jacket in try 4). Both are really
+two sentences: the second ends in an emoji with no period, so the counter
+doesn't see it. That's the counting weakness noted in the diagnosis, not
+shorter captions. Cards counted as under 2 sentences went from 4 to 7 of 65,
+which is within run-to-run variation, since none of the before ones happened to
+land in a criterion-4 scenario. It didn't change a verdict, because each try
+still had 4+ of 5 passing. But with one more such card in a try, criterion 4
+would have "missed" because of the counter, not the caption.
 
 ---
 

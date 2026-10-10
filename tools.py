@@ -271,12 +271,19 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
 
     prompt = (
         f"Write a 2-4 sentence caption for a social media post about this thrift find.\n\n"
+        # Unit 4 fix: say who is posting. Without this the model often wrote
+        # sale listings ("up on my depop", "parting with this…") because the
+        # prompt never said the poster BOUGHT the item.
+        "The person posting is the BUYER. They just bought this secondhand and "
+        "are showing off their find and how they're styling it. They are not "
+        "selling it, have not listed it, and are keeping it — never write it as "
+        "a listing or invite anyone to buy it.\n\n"
         f"Item: {new_item['title']}\n"
-        f"Price: ${new_item['price']:g}\n"
-        f"Platform: {new_item['platform']}\n"
+        f"Price they paid: ${new_item['price']:g}\n"
+        f"Where they found it: {new_item['platform']}\n"
         f"How they're styling it: {outfit}\n\n"
-        f"Mention the item, the price (as ${new_item['price']:g}) and the platform "
-        "exactly once each. Be specific about the vibe of the outfit. It should "
+        f"Mention the item, the price (as ${new_item['price']:g}) and where they "
+        "found it exactly once each. Be specific about the vibe of the outfit. It should "
         "sound like a real person posting, not a product description. At most "
         "one or two emoji. No hashtags. Return only the caption."
     )
