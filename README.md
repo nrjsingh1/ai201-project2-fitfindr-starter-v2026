@@ -381,17 +381,22 @@ The same `lst_002` id appears in `select_item` and in the inputs of both
 1. *Empty search*: `python app.py ask 'gold sequin tuxedo jacket size XXS under $3'`
    ```
    Nothing in the listings matched description 'gold sequin tuxedo jacket', size XXS, under $3.
-   Things to change: try broader words — 'jacket' finds more than 'cropped corduroy jacket'; drop the size, or try a neighbouring one; raise the price ceiling above $3.
+   Things to change: try fewer words — 'jacket' alone finds more than 'gold sequin tuxedo jacket'; drop the size, or try a neighbouring one; raise the price ceiling above $3.
    ```
-   It stopped at the branch with 0 model calls. It already handled this before
-   this milestone.
+   It stopped at the branch with 0 model calls. The first version used a fixed
+   example ("'jacket' finds more than 'cropped corduroy jacket'") that had
+   nothing to do with the query. The "fewer words" example is now built from
+   the user's own description.
 
 2. *Empty wardrobe*: `python app.py ask 'denim jacket under $50' --empty-wardrobe`.
    There was no crash and no empty string. `suggest_outfit` returned two
-   general outfits ("high-waisted black cargo pants and a fitted white ribbed
-   tank top…", "a slip midi dress in olive green…") with no wardrobe pieces
-   named, and the fit card was written from that. It already handled this
-   before this milestone.
+   general outfits, and the fit card was written from them. The first version
+   never said there was no wardrobe, so the outfits read as if the app had
+   invented clothes the user owns. The output now opens with a fixed line,
+   added in code rather than left to the model:
+   ```
+   You haven't saved any wardrobe items, so these are general ideas, not pieces you own. Add your clothes to your wardrobe to get outfits built from what you already have.
+   ```
 
 3. *Model unavailable*: one character of `GEMINI_API_KEY` in `.env` changed,
    then a query not asked before: `python app.py ask 'olive canvas shacket size M'`
@@ -412,6 +417,16 @@ The same `lst_002` id appears in `select_item` and in the inputs of both
    searched and no outfit was written… Try the same query again; if it fails
    twice, run `python mcp_client.py`…" and not a raw `MCPError` traceback.
    This handler was added in this milestone.
+
+**Checking the messages.** I gave the three messages to a fresh Claude session
+that had never seen the code, with the assignment's prompt ("tell me what I
+would try next… don't rewrite them"). The empty search: it would drop the size,
+raise the price, then shorten to "jacket". It found the fixed example confusing.
+The empty wardrobe: it thought the app had "made those pieces up" and couldn't
+tell that saving a wardrobe would help. The model unavailable: the fix is clear
+if you run the app yourself, but there's nothing to do if someone else hosts
+it. That's acceptable for a command-line tool you run yourself, so it stayed.
+The first two led to the fixes above.
 
 **On the MCP move:** <!-- what changed in your code, and whether anything
 behaved differently afterwards. If the rewire didn't work, say exactly where it

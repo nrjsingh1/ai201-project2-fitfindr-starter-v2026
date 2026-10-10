@@ -226,7 +226,12 @@ def _nothing_found_message(parsed: dict) -> str:
     if parsed["max_price"] is not None:
         tried.append(f"under ${parsed['max_price']:g}")
 
-    suggestions = ["try broader words — 'jacket' finds more than 'cropped corduroy jacket'"]
+    words = parsed["description"].split()
+    if len(words) > 1:
+        broader = f"try fewer words — '{words[-1]}' alone finds more than '{parsed['description']}'"
+    else:
+        broader = "try a different or more common word for what you want"
+    suggestions = [broader]
     if parsed["size"]:
         suggestions.append("drop the size, or try a neighbouring one")
     if parsed["max_price"] is not None:

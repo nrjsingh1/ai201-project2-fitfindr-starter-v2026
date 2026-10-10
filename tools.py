@@ -201,7 +201,16 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
         system="You are a practical thrift-store stylist. Plain text, no markdown headings.",
     )
     # Spec: never return "". If the model hands back nothing, say so plainly.
-    return response.strip() or f"No outfit ideas came back for {new_item['title']}."
+    advice = response.strip() or f"No outfit ideas came back for {new_item['title']}."
+    if not items:
+        # Said in code, not left to the model: the user must know these pieces
+        # are suggestions, not things we think they own.
+        advice = (
+            "You haven't saved any wardrobe items, so these are general ideas, "
+            "not pieces you own. Add your clothes to your wardrobe to get "
+            "outfits built from what you already have.\n\n" + advice
+        )
+    return advice
 
 
 def _describe_item(item: dict) -> str:
