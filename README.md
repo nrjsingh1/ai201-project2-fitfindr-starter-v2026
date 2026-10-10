@@ -352,7 +352,21 @@ behaved differently afterwards. If the rewire didn't work, say exactly where it
 broke — the error text and the last thing that worked. That earns the point in
 full. -->
 
+`search_listings` now runs on an MCP server. `mcp_server.py` registers it with
+the same three typed inputs as the Tool Inventory (`description` string,
+`size` optional string, `max_price` optional number) and a description that
+states the size-matching rule, that prices are in US dollars, inclusive, and
+that no match returns `[]`. `python mcp_client.py` lists the tool with exactly
+those types. In `agent.py::run_agent`, the direct `search_listings(...)` call
+became `call_tool("search_listings", {...})`. Nothing else in the loop changed.
 
+Nothing behaved differently. Before swapping, I called both paths on the same
+three inputs (`'vintage graphic tee'` ≤ $30, `'designer ballgown'` XXS ≤ $5,
+`'sneakers'` size 8) and compared with `==`. The results were identical:
+10, 0 and 1 listings. The empty case still comes back as a list `[]`, not
+`None`, so the branch still fires. A full query picks the same item as in unit 3
+(`lst_002`, Y2K Baby Tee, $18). The only cost is speed: each call starts the
+server, asks, and stops it again.
 
 ---
 

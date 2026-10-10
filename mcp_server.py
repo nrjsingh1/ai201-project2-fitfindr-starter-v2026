@@ -59,7 +59,7 @@ works with a direct call, and **a documented failure earns the point in full.**
 
 from mcp.server.fastmcp import FastMCP
 
-from tools import search_listings as _search_listings_impl  # noqa: F401 — you'll use this below
+from tools import search_listings as _search_listings_impl
 
 # log_level="WARNING" keeps the server from printing an INFO line for every
 # request. Without it your terminal fills with "Processing request of type
@@ -67,23 +67,38 @@ from tools import search_listings as _search_listings_impl  # noqa: F401 — you
 mcp = FastMCP("fitfindr", log_level="WARNING")
 
 
-# ── TODO: uncomment and fill this in ──────────────────────────────────────────
-#
-# @mcp.tool()
-# def search_listings(
-#     description: str,
-#     size: str | None = None,
-#     max_price: float | None = None,
-# ) -> list[dict]:
-#     """
-#     <-- YOUR DESCRIPTION GOES HERE.
-#
-#         One or two sentences. What does this tool do, what does it need, and
-#         what does it give back when it finds nothing? Written for a reader
-#         who cannot see the code.
-#     """
-#     return _search_listings_impl(description, size, max_price)
-#
+# ── search_listings, served over MCP ──────────────────────────────────────────
+
+@mcp.tool()
+def search_listings(
+    description: str,
+    size: str | None = None,
+    max_price: float | None = None,
+) -> list[dict]:
+    """
+    Search 40 secondhand clothing listings (Depop, thredUp, Poshmark) and
+    return up to 10, best keyword match first.
+
+    Inputs:
+      description (string, required): keywords such as "vintage graphic tee",
+        matched case-insensitively against each listing's title, description
+        and style tags. Words shorter than 3 letters are ignored.
+      size (string, optional): letter sizes "XS"-"XXL" match whole tokens, so
+        "M" matches "S/M" and "M/L" but not "XL"; a bare number is a US shoe
+        size ("8" matches "US 8", not "US 8.5"); "W30" matches waist "W30 L30".
+        "One Size" listings always pass. Omit to skip size filtering.
+      max_price (number, optional): price ceiling in US dollars, inclusive
+        (30 means $30.00 or less). Omit to skip price filtering.
+
+    Returns a JSON list of listing objects, each with: id, title, description,
+    category, style_tags (list), size, condition, price (number, USD),
+    colors (list), brand (string or null, usually null), platform.
+
+    When nothing matches, returns an empty list [], not an error.
+    """
+    return _search_listings_impl(description, size, max_price)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 #
 # Two notes on the block above.

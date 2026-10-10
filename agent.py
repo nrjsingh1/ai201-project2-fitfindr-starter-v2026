@@ -2,7 +2,8 @@ import re
 
 import config
 import trace
-from tools import search_listings, suggest_outfit, create_fit_card
+from mcp_client import call_tool
+from tools import suggest_outfit, create_fit_card
 from generate import ModelUnavailable
 
 
@@ -114,11 +115,18 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         steps += 1
         trace.check_iterations(steps)
         parsed = session["parsed"]
-        session["search_results"] = search_listings(
-            parsed["description"], parsed["size"], parsed["max_price"]
+        # Unit 4: search_listings now runs on the MCP server (mcp_server.py),
+        # not in-process. Same inputs, same list of listing dicts back.
+        session["search_results"] = call_tool(
+            "search_listings",
+            {
+                "description": parsed["description"],
+                "size": parsed["size"],
+                "max_price": parsed["max_price"],
+            },
         )
         trace.step(
-            "search_listings",
+            "search_listings (via MCP)",
             inputs=session["parsed"],
             returned=session["search_results"],
             note=f"{len(session['search_results'])} match(es)",
