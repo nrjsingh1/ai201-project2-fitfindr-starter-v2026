@@ -436,15 +436,63 @@ Platform Sneakers ("chunky sole"), which is keyword overlap again.
 
 | # | Criterion | Target | Verdict | How I decided |
 |---|---|---|---|---|
-| 1 |  |  |  |  |
-| 2 |  |  |  |  |
-| 3 |  |  |  |  |
-| 4 |  |  |  |  |
-| 5 |  |  |  |  |
+| 1 | A matching query completes all three tools and returns a fit card | 4 of 5 | **MET (5/5)** | `session["error"]` was `None` and `fit_card` was a real caption in all 5 tries (`score_eval.py::check_1`). |
+| 2 | An impossible query stops before `suggest_outfit` with a message naming what to change | 5 of 5 | **MET (5/5)** | In all 5 tries: `search_results == []`, no `suggest_outfit` step in the trace, `outfit_suggestion` and `fit_card` both `None`, and `error` contains "Things to change". |
+| 3 | The `id` in `selected_item` equals `search_results[0]`'s and is what the trace shows going into both later tools | 5 of 5 | **MET (5/5)** | `lst_008` in all three places, in all 5 tries (`check_3` reads the trace's `in:` lines). |
+| 4 | Fit card: 2–4 sentences, `$price`, platform, no repeated opening (4 of 5 cards) | 4 of 5 cards, 5 of 5 tries | **MET (5/5)** as written | All 25 cards passed every check. Read plainly, this verdict is misleading. See the revision and the miss below. |
+| 4 (revised) | The same, **plus written as the buyer, not the seller** | 4 of 5 cards, 5 of 5 tries | **MISSED (0/5)** | Re-scored the *same* before run (no new calls): `python score_eval.py --rescore results/run_2026-10-09_2133_before.md --label before_revised4`. Only 2–3 of 5 cards pass in each try. |
+| 5 | `under $N` parses to `max_price == N` and no result costs more than N | 5 of 5 queries, 5 of 5 tries | **MET (5/5)** | All 25 query-runs parsed N exactly. The highest result price never went over N; the $35 cardigan and the $20 tee sat exactly at the ceiling and were kept. |
 
 **Diagnoses**
 
+*Criterion 4 (revised): MISSED, 0 of 5 tries.*
 
+- **Where:** the model's output, from `tools.py::create_fit_card`. Not a tool
+  bug, the branch or the session. The trace shows the right item (`lst_004`,
+  `lst_013`…) going into `create_fit_card` every time, and every card names
+  that item, its price and its platform correctly. What's wrong is who the
+  card says the poster is.
+- **Mechanism:** the prompt never says the poster *bought* the item. It says
+  "a caption for a social media post about this thrift find", gives
+  `Platform: depop`, and requires "the platform exactly once". It even
+  describes the outfit as "How *they're* styling it", which leaves the poster's
+  identity open. On Depop, Poshmark and thredUp, the most common post that
+  names an item, its price and the platform is a sale listing, so at
+  temperature 0.9 the model often fills the gap with a seller: "It's up on my
+  Poshmark for $45 if you want to make it yours", "Snag it on my depop before I
+  change my mind". Some cards switch halfway through ("Just scored this… It's
+  up on my Poshmark"), which shows the model taking the two readings in turn
+  rather than holding one view.
+- **The numbers:** 26 of all 65 cards in the before run are in seller voice,
+  spread across every scenario that writes a card. In the five criterion-4
+  scenarios: track jacket 5/5, leather bomber 3/5, silk slip dress 2/5,
+  corduroy pants 2/5, platform sneakers 0/5.
+
+*The pattern.* It's one problem, not five. The seller voice shows up in all
+13 scenarios that produce a card, so it isn't one bad item. It isn't the
+platform either: Poshmark items range from 5/5 (track jacket) to 0/5
+(sneakers, boots). It isn't the empty wardrobe or the price ceiling path. The
+only thing every case shares is the `create_fit_card` prompt. One missing line
+in one prompt explains all 26.
+
+*Were my targets low?* Partly, yes. Criteria 2, 3 and 5 test deterministic
+code (the branch, a dict passed through the session, a regex and a `<=`). Once
+that code was right, 5 of 5 was all but guaranteed. They prove the code works;
+they were never going to be close. Criterion 1's 4 of 5 was loose: no try failed
+for any reason, so it could be 5 of 5. Criterion 4 is the one that mattered,
+and its target wasn't the problem. Its checks were: they measured format, and
+format is the part the model gets right. I revised criterion 4 (above and in
+`criteria.md`). If I tightened another, it would be criterion 1, to 5 of 5.
+
+*Checking the verdict.* I gave criterion 4, its five tries, try 1's cards and
+my original MET verdict to a fresh Claude session and asked it to argue the
+opposite. Its case was that the criterion promises "usable", and three of try
+1's five cards ("Finally parting with…", "Find it live on my Depop") can't be
+posted by a shopper, so try 1 is 2/5. That is the revision. It also pointed out
+that the sentence count is gameable: a 50-word run-on counts as one sentence,
+and a final line ending in an emoji isn't counted at all. That's true. I've
+noted it, but I didn't revise the criterion a second time, because no card in
+this run was unreadable for that reason.
 
 ---
 

@@ -82,8 +82,25 @@ still sometimes leaves it out or runs long, and the prompt can't force it.
 The no-repeated-opening rule has no slack: identical openings across different
 items would mean the cache is on or the prompt ignores the item.
 
-
----
+> **Revised in unit 4:** For 5 queries that select 5 different listings, at
+> least 4 of the 5 fit cards are 2–4 sentences long (counting `.`, `!` and `?`
+> endings), contain the item's price as `$` plus the number, contain its
+> platform name, **and are written as the buyer, not the seller**: no card
+> says or implies the poster is selling the item. Seller phrases include
+> "just listed", "up on my depop", "live on my…", "available now",
+> "parting with", "my poshmark", "before I change my mind", and "if you want
+> to snag it". No two of the 5 cards start with the same first sentence.
+> Target unchanged: 4 of 5 cards per try, in 5 of 5 tries.
+>
+> **Why revised:** the original measured the wrong thing. Its heading
+> promises "a usable caption", but every check is about format, so a card
+> that tells the shopper's friends the shopper is *selling* the jacket passes
+> all of them. The before run proves it: every try passed, yet 26 of the 65
+> cards in that run are written as the seller ("Finally parting with this 90s
+> leather bomber… because my closet is overflowing"). Those cards can't be
+> posted by the person the app is for. The revision adds one check, scored in
+> `score_eval.py::seller_voice`, and **raises** the bar. The target number
+> stays where it was.
 
 ## 5. The search respects the price ceiling
 

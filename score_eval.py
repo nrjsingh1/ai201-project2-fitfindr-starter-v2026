@@ -28,13 +28,14 @@ import config
 import run_eval
 import scenarios as scenario_module
 
-TARGETS = {1: 4, 2: 5, 3: 5, 4: 5, 5: 5}  # tries out of 5 needed for MET
+TARGETS = {1: 4, 2: 5, 3: 5, 4: 5, "4R": 5, 5: 5}  # tries out of 5 needed for MET
 TARGET_TEXT = {
     1: "4 of 5",
     2: "5 of 5",
     3: "5 of 5",
     4: "4 of 5 cards, no repeat opening",
     5: "5 of 5 queries",
+    "4R": "4 of 5 cards, no repeat opening",
 }
 TITLES = {
     1: "Matching query completes all three tools",
@@ -42,6 +43,7 @@ TITLES = {
     3: "Selected item is the item passed on (by id)",
     4: "Fit card: 2-4 sentences, $price, platform",
     5: "Search respects the price ceiling",
+    "4R": "Fit card (revised): + buyer's voice, not seller's",
 }
 
 
@@ -117,6 +119,58 @@ def check_card(rec):
     return (not problems), ", ".join(problems)
 
 
+# Criterion 4 as revised in unit 4 (see criteria.md): the card must also be in
+# the BUYER's voice. A card fails if it says or implies the poster is selling
+# the item — listed/up/live on their account, parting with it, or offering it
+# to the reader. These patterns were checked by hand against all 40 cards from
+# the before run (18 seller, 22 buyer) and agree on every one.
+SELLER_PATTERNS = [
+    r"\b(just )?(listed|dropped)\b",
+    r"\b(up|live)( now)? on my\b",
+    r"\bup now on\b",
+    r"\bavailable now\b",
+    r"\bparting with\b",
+    r"\bmy (depop|poshmark|thredup)\b",
+    r"\bbefore i change my mind\b",
+    r"\bif (you|anyone( else)?) wants? to (snag|make it yours|grab)\b",
+]
+
+
+def seller_voice(card):
+    """The first seller phrase found in the card, or None."""
+    for pattern in SELLER_PATTERNS:
+        m = re.search(pattern, card, re.I)
+        if m:
+            return m.group(0)
+    return None
+
+
+def score_card_set_revised(cards):
+    """cards: list of (name, card, item). Revised criterion 4 for one try."""
+    fails, openings = [], []
+    for name, card, item in cards:
+        problems = []
+        n = _sentences(card)
+        if not 2 <= n <= 4:
+            problems.append(f"{n} sentence(s)")
+        if not re.search(rf"\${item['price']:g}(\.00?)?(?!\d)", card):
+            problems.append(f"no ${item['price']:g}")
+        if item["platform"].lower() not in card.lower():
+            problems.append(f"no '{item['platform']}'")
+        phrase = seller_voice(card)
+        if phrase:
+            problems.append(f"seller voice: '{phrase}'")
+        if problems:
+            fails.append(f"{name}: {', '.join(problems)}")
+        openings.append(_opening(card))
+    passed = len(cards) - len(fails)
+    repeats = len(openings) - len(set(openings))
+    note = f"{passed}/{len(cards)} cards pass" + (" — " + "; ".join(fails) if fails else "")
+    if repeats:
+        note += f"; {repeats} repeated opening(s)"
+    return passed >= 4 and repeats == 0, note
+
+
 def check_price(rec, ceiling):
     if rec["crashed"]:
         return False, f"crashed: {rec['crashed']}"
@@ -160,6 +214,13 @@ def score(runs, tries):
                 note += f"; {repeats} repeated opening(s)"
             table.setdefault(4, []).append((passed >= 4 and repeats == 0, note))
 
+        if cards and all(r["session"] and r["session"]["fit_card"] for _, r in cards):
+            table.setdefault("4R", []).append(score_card_set_revised(
+                [(sc["name"].split(": ")[1], r["session"]["fit_card"], r["session"]["selected_item"])
+                 for sc, r in cards]))
+        elif cards:
+            table.setdefault("4R", []).append((False, "a fit-card run did not complete"))
+
         prices = [(sc, recs[k]) for sc, recs in by_crit.get(5, [])]
         if prices:
             results = []
@@ -183,7 +244,7 @@ def write(table, tries, label):
         "| Criterion | Target | " + " | ".join(f"Try {i}" for i in range(1, tries + 1)) + " | Verdict |",
         "|---|---|" + "|".join(["---"] * tries) + "|---|",
     ]
-    for c in sorted(k for k in table if k):
+    for c in sorted((k for k in table if k), key=str):
         cells = table[c]
         n = sum(ok for ok, _ in cells)
         verdict = f"{'MET' if n >= TARGETS[c] else 'MISSED'} ({n}/{tries})"
@@ -193,7 +254,7 @@ def write(table, tries, label):
             + f" | {verdict} |"
         )
     lines += ["", "## Per-try notes", ""]
-    for c in sorted(k for k in table if k):
+    for c in sorted((k for k in table if k), key=str):
         lines.append(f"**Criterion {c}**")
         lines.append("")
         for i, (ok, why) in enumerate(table[c], 1):
@@ -201,11 +262,41 @@ def write(table, tries, label):
         lines.append("")
     path = config.RESULTS_DIR / f"score_{label}.md"
     path.write_text("\n".join(lines), encoding="utf-8")
-    print("\n".join(lines[:6 + len(table)]))
+    print("\n".join(l for l in lines if l.startswith("|")))
     print(f"\nWrote {path.relative_to(config.ROOT)}")
 
 
+def rescore(path):
+    """
+    Score revised criterion 4 from an existing run log, without re-running.
+    Used to apply the unit 4 revision to the 'before' run.
+    """
+    text = open(path, encoding="utf-8").read()
+    sections = {s.splitlines()[0]: s for s in re.split(r"\n### ", text)[1:]}
+    items = {sc["name"]: sc for sc in scenario_module.SCENARIOS if sc.get("criterion") == 4}
+    from utils.data_loader import load_listings
+    by_title = {l["title"]: l for l in load_listings()}
+
+    per_try = {}
+    for name in items:
+        sec = sections[name]
+        tries = re.split(r"\*\*Try \d+\*\*", sec)[1:]
+        for k, body in enumerate(tries):
+            title = re.search(r"- selected_item: (.*?) \(\$", body).group(1)
+            card = re.search(r"Fit card:\n\n```\n(.*?)\n```", body, re.S).group(1)
+            per_try.setdefault(k, []).append((name.split(": ")[1], card, by_title[title]))
+    table = {"4R": [score_card_set_revised(per_try[k]) for k in sorted(per_try)]}
+    return table, len(per_try)
+
+
 def main():
+    if "--rescore" in sys.argv:
+        path = sys.argv[sys.argv.index("--rescore") + 1]
+        label = sys.argv[sys.argv.index("--label") + 1] if "--label" in sys.argv else "rescore"
+        table, tries = rescore(path)
+        write(table, tries, label)
+        return
+
     label = "run"
     if "--label" in sys.argv:
         label = sys.argv[sys.argv.index("--label") + 1]
