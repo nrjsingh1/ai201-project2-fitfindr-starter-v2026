@@ -256,6 +256,41 @@ to read them closely and be ready to defend or revise them in unit 4.
 - *What came back:* the size rules all held (`M` matches `S/M`, `S` doesn't match `US 9`, `8` doesn't match `US 8.5`), but `'graphic tee', max_price=30` also returned low-rise cargo pants and a crewneck sweatshirt. Checking why: the cargo pants' description contains the word "tee" and the sweatshirt's contains "graphics", and my spec says to search descriptions.
 - *What I changed:* I kept the behaviour because it is what the spec says, and noted it under Sample Run as a known weakness of plain keyword search. It is the first thing to look at in unit 4 if criterion 1 or result relevance comes up short.
 
+**Unit 4**
+
+I kept using Claude Code (Opus 5.5) for the build, the runs and the write-up.
+Two moments changed the result:
+
+**Moment 3**
+
+- *What I asked for:* score the before run against my five criteria.
+- *What came back:* a scorer (`score_eval.py`), and on its first smoke test it
+  failed criterion 2 on a run that was correct. The branch's own trace note,
+  "stopping before suggest_outfit", contains the text "suggest_outfit", so the
+  check thought the tool had been called. I also had it plant failures on
+  purpose (a 1-sentence card, a wrong `id`, an over-budget listing) to make
+  sure the scorer could say FAIL at all.
+- *What I changed:* the check now looks for a real `] suggest_outfit` step
+  line, not the word anywhere. Without the smoke test, criterion 2 would have
+  read MISSED 0/5 for a bug in the scorer, not the agent.
+
+**Moment 4**
+
+- *What I asked for:* the verdicts. Every criterion came back MET 5/5.
+- *What came back:* reading the 40 fit cards by hand showed 18 of them written
+  as the *seller* ("Finally parting with this 90s leather bomber…"). A fresh
+  Claude session asked to argue the opposite of my MET verdict on criterion 4
+  made the same case on its own: by meaning, try 1 was 2/5.
+- *What I changed:* I revised criterion 4 (original kept) to add "written as
+  the buyer", re-scored the same run (MISSED 0/5), traced it to the
+  `create_fit_card` prompt never saying who was posting, and fixed that one
+  prompt. After: 0 of 65 seller cards, MET 5/5.
+
+Fresh Claude sessions with no project context were also used for the two
+"paste it into Claude" checks: the error messages in Milestone 2 and the
+opposite verdict in Milestone 4. What changed as a result is recorded where
+each one happened.
+
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
      Don't fill these in during unit 3.
@@ -712,7 +747,56 @@ would have "missed" because of the counter, not the caption.
      you did. "I ran out of time" is fine if it's true. Pretending nothing is
      left is not. -->
 
+**No criterion is still missed.** After the prompt fix, all five (including
+criterion 4 as revised) are MET 5/5. That's not the same as nothing being
+broken. These are what's left, most important first, with why I stopped.
 
+1. **The sentence counter in criterion 4 can be fooled, and it nearly gave a
+   false miss.** `score_eval.py::_sentences` counts `.`, `!` and `?`, so a
+   final sentence ending in an emoji isn't counted, and a 50-word run-on counts
+   as one sentence. In the after run it marked two real 2-sentence cards as
+   "1 sentence". Neither changed a verdict, but one more in a try would have.
+   *What I'd do:* treat a line break or a trailing emoji as a sentence end, and
+   add a word limit (say, 70 words) so run-ons can't hide. *Why I stopped:*
+   changing the scorer *and* the prompt in the same milestone would have broken
+   "one change, measured properly". It's also a change to how the criterion is
+   measured, so it needs its own revision note and a fresh before run.
+
+2. **Keyword search drifts off-category.** `chunky knit cardigan` returns
+   Platform Sneakers ("chunky sole"), and `graphic tee` returns cargo pants
+   whose description says "tee". The top result was right in every scenario I
+   ran, so no criterion caught it, but the agent always takes `results[0]`, so
+   a query where a loose match ranks first would style the wrong item.
+   *What I'd do:* weight `title` and `style_tags` matches above `description`
+   matches in `tools.py::search_listings`, and add a criterion that the
+   selected item's `category` matches the noun in the query. *Why I stopped:*
+   it never caused a failing try, and Milestone 5 allowed one change, which went
+   to the criterion that was actually missed.
+
+3. **The seller-voice check is a phrase list.** It agreed with my hand labels
+   on all 40 cards I checked, and a broader search found no sale words after
+   the fix. But a new phrasing ("hmu if interested") would get past it.
+   *What I'd do:* add a second, model-graded check ("is the poster buying or
+   selling?") and report where it disagrees with the list. *Why I stopped:* it
+   would double the model calls per run on a 15-requests-a-minute free tier.
+
+4. **My targets were mostly easy to hit.** Criteria 2, 3 and 5 test
+   deterministic code, and criterion 1's 4 of 5 never needed its slack. I'd
+   tighten criterion 1 to 5 of 5. I'm leaving the numbers as written, because
+   the course is clear that targets aren't moved after the results are in.
+
+5. **Smaller things.** The query parser misses spelled-out prices
+   ("under thirty dollars" sets no ceiling). The "Found:" line prints `$42.0`
+   (from the starter's `app.py`). Every search starts the MCP server afresh,
+   which makes it noticeably slower than the direct call (see *On the MCP move*
+   under Loop Trace).
+
+**On the MCP move (summary):** `search_listings` moved onto
+`mcp_server.py`, and `agent.py::run_agent` calls it through
+`mcp_client.call_tool`. Results were identical to the direct call on the
+match, empty and size-8 cases, and every criterion held across both runs. The
+only behavioural differences are speed, and a new failure mode (the server not
+starting), which now has its own handler.
 
 <!-- ═════════════════════════════════════════════════════════════════════
 
